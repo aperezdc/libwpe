@@ -2,18 +2,20 @@ version: 2
 jobs:
   build:
     docker:
-      - image: aperezdc/ci-wpebackend:latest
+      - image: aperezdc/ci-libwpe:latest
     steps:
       - checkout
       - run:
           name: Build
           command: |
-            rm -rf _build
+            # XXX: This depends on details of the PKGBUILD
             mkdir _build
-            cd _build
-            cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=/usr/lib ..
-            ninja
-      - run:
-          name: Install
-          command: |
-            ninja -C _build install
+            chown nobody:nobody _build
+            # XXX: Is there a better way of getting the PKGBUILD?
+            mkdir -p /tmp/p/src
+            ln -sf "$(pwd)" /tmp/p/src/libwpe-git
+            ln -sf "$(pwd)/_build" /tmp/p/src/_build
+            cd /tmp/p
+            curl -sLo _pkg/PKGBUILD 'https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=libwpe-git'
+            chown -hR nobody:nobody .
+            sudo -u nobody makepkg --skipinteg --nosign --noextract --force --nocolor
