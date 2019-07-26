@@ -1,0 +1,56 @@
+version: '{branch}.{build}'
+
+skip_branch_with_pr: true
+
+image: Visual Studio 2017
+
+platform:
+  - x64
+
+environment:
+  ANGLE_PKG: ANGLE.WindowsStore.win81
+  ANGLE_VER: 2.1.10
+  NINJA_VER: 1.9.0
+  XKBCOMMON_VER: 0.8.4
+  FLEXBISON_VER: 2.5.18
+  PKG_CONFIG_PATH: 'c:\libxkbcommon\lib\pkgconfig'
+
+install:
+  # Download and compile xkbcommon, used for keyboard events. This is done
+  # using Meson because it is dramatically easier than using autotools, see
+  # https://mesonbuild.com/Continuous-Integration.html for inspiration.
+  - mkdir c:\buildtools
+  - appveyor DownloadFile https://github.com/ninja-build/ninja/releases/download/v%NINJA_VER%/ninja-win.zip -FileName c:\buildtools\ninja-win.zip
+  - appveyor DownloadFile https://github.com/lexxmark/winflexbison/releases/download/v%FLEXBISON_VER%/win_flex_bison-%FLEXBISON_VER%.zip -FileName c:\buildtools\flexbison.zip
+  - 7z e -y -oc:\buildtools c:\buildtools\ninja-win.zip
+  - 7z x -y -oc:\buildtools c:\buildtools\flexbison.zip
+  - rename c:\buildtools\win_flex.exe flex.exe
+  - rename c:\buildtools\win_bison.exe bison.exe
+  - set PATH=%PATH%;c:\buildtools;c:\python37-x64;c:\python37-x64\Scripts;%PATH%
+  - c:\python37-x64\Scripts\pip install meson
+  - 'call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat" x64'
+  # libxkbcommon
+  - appveyor DownloadFile https://xkbcommon.org/download/libxkbcommon-%XKBCOMMON_VER%.tar.xz
+  - 7z x -so libxkbcommon-%XKBCOMMON_VER%.tar.xz  | 7z x -si -ttar
+  - del libxkbcommon-%XKBCOMMON_VER%\meson.build
+  - appveyor DownloadFile https://people.igalia.com/aperez/files/xkbcommon-%XKBCOMMON_VER%-meson.build -FileName libxkbcommon-%XKBCOMMON_VER%\meson.build
+  - meson --buildtype release --default-library static --strip -Denable-x11=false -Denable-docs=false -Denable-wayland=false --prefix c:\libxkbcommon libxkbcommon-%XKBCOMMON_VER% libxkbcommon-build
+  - ninja -C libxkbcommon-build install
+  # Install MSYS2's dlfcn library.
+  # - c:\msys64\usr\bin\bash --login -c 'pacman --noconfirm -Syu'
+  # - c:\msys64\usr\bin\bash --login -c 'pacman --noconfirm -Su'
+  # - c:\msys64\usr\bin\bash --login -c 'pacman --noconfirm -S mingw-w64-x86_64-dlfcn'
+  # Download and install ANGLE, needed for EGL.
+  - nuget install %ANGLE_PKG% -Version %ANGLE_VER% -ForceEnglishOutput
+
+cache:
+  - packages -> **\packages.config
+
+build_script:
+  - mkdir build
+  - cd build
+  - cmake -DPKG_CONFIG_EXECUTABLE=c:\msys64\usr\bin\pkg-config.exe \
+    -DEGL_INCLUDE_DIRS=../%ANGLE_PKG%.%ANGLE_VER%/include \
+    -DCMAKE_VERBOSE_MAKEFILE=ON \
+    ..
+  - cmake --build .
