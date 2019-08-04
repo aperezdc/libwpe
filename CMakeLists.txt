@@ -43,12 +43,11 @@ set(WPE_INCLUDE_DIRECTORIES
     "src"
     ${DERIVED_SOURCES_DIR}
     ${EGL_INCLUDE_DIRS}
-    ${LIBXKBCOMMON_INCLUDE_DIRS}
 )
 
 set(WPE_LIBRARIES
+    LibXkbcommon::LibXkbcommon
     dl
-    ${LIBXKBCOMMON_LIBRARIES}
 )
 
 set(WPE_SOURCES
